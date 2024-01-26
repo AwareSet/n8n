@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Container, Service } from 'typedi';
 import type { IProcessMessage } from 'n8n-core';
-import { WorkflowExecute } from 'n8n-core';
+import { Semaphore, WorkflowExecute } from 'n8n-core';
 
 import type {
 	ExecutionError,
@@ -53,6 +53,9 @@ import { WorkflowStaticDataService } from '@/workflows/workflowStaticData.servic
 @Service()
 export class WorkflowRunner {
 	private jobQueue: Queue;
+
+	/** This is concurrency mechanism to limit the number of parallel executions in main mode */
+	private mainModeConcurrencySemaphore = new Semaphore(config.getEnv('executions.concurrency'));
 
 	private executionsMode = config.getEnv('executions.mode');
 
@@ -286,6 +289,9 @@ export class WorkflowRunner {
 		const executionId = await this.activeExecutions.add(data, undefined, restartExecutionId);
 		additionalData.executionId = executionId;
 
+		// Wait here in case execution concurrency limit is reached
+		await this.mainModeConcurrencySemaphore.acquire();
+
 		this.logger.verbose(
 			`Execution for workflow ${data.workflowData.name} was assigned id ${executionId}`,
 			{ executionId },
@@ -311,6 +317,7 @@ export class WorkflowRunner {
 					error,
 					error.node,
 				);
+				// TODO: do we really need to run this hook?
 				await additionalData.hooks.executeHookFunctions('workflowExecuteAfter', [failedExecution]);
 				this.activeExecutions.remove(executionId, failedExecution);
 				return executionId;
@@ -402,7 +409,10 @@ export class WorkflowRunner {
 							executionId,
 							additionalData.hooks,
 						),
-				);
+				)
+				.finally(() => {
+					this.mainModeConcurrencySemaphore.release();
+				});
 		} catch (error) {
 			await this.processError(
 				error,

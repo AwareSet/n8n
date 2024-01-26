@@ -68,7 +68,7 @@ jobs:
         shell: bash
 
       - name: Run tests
-        run: n8n/packages/cli/bin/n8n executeBatch --shallow --skipList=test-workflows/skipList.txt --githubWorkflow --shortOutput --concurrency=16 --compare=test-workflows/snapshots
+        run: n8n/packages/cli/bin/n8n executeBatch --shallow --skipList=test-workflows/skipList.txt --githubWorkflow --shortOutput --compare=test-workflows/snapshots
         shell: bash
         id: tests
         env:
