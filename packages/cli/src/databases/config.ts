@@ -14,6 +14,14 @@ import config from '@/config';
 
 const entitiesDir = path.resolve(__dirname, 'entities');
 
+const useLibSql = process.env.DB_SQLITE_USE_LIBSQL === 'true';
+
+const getSqlitePath = () => {
+	const { n8nFolder } = Container.get(InstanceSettings);
+	const filePath = path.resolve(n8nFolder, config.getEnv('database.sqlite.database'));
+	return useLibSql ? `file:${filePath}` : filePath;
+};
+
 const getDBConnectionOptions = (dbType: DatabaseType) => {
 	const entityPrefix = config.getEnv('database.tablePrefix');
 	const migrationsDir = path.resolve(__dirname, 'migrations', dbType);
@@ -21,11 +29,10 @@ const getDBConnectionOptions = (dbType: DatabaseType) => {
 	const connectionDetails =
 		configDBType === 'sqlite'
 			? {
-					database: path.resolve(
-						Container.get(InstanceSettings).n8nFolder,
-						config.getEnv('database.sqlite.database'),
-					),
+					database: getSqlitePath(),
 					enableWAL: config.getEnv('database.sqlite.enableWAL'),
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+					driver: require('@libsql/sqlite3'),
 			  }
 			: {
 					database: config.getEnv(`database.${configDBType}.database`),
